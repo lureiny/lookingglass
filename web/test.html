@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Protobuf Test</title>
+</head>
+<body>
+    <h1>Protobuf Encoding Test</h1>
+    <button onclick="testListAgents()">Test LIST_AGENTS</button>
+    <button onclick="testExecute()">Test EXECUTE</button>
+    <pre id="output"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+    <script src="js/protobuf.js"></script>
+    <script>
+        const output = document.getElementById('output');
+
+        async function init() {
+            output.textContent = 'Initializing protobuf...\n';
+            const success = await ProtoHandler.init();
+            if (success) {
+                output.textContent += 'Protobuf initialized successfully!\n';
+            } else {
+                output.textContent += 'Failed to initialize protobuf\n';
+            }
+        }
+
+        function testListAgents() {
+            try {
+                const request = ProtoHandler.createListAgentsRequest();
+                output.textContent += '\nLIST_AGENTS request created:\n';
+                output.textContent += 'Bytes: ' + Array.from(request).map(b => b.toString(16).padStart(2, '0')).join(' ') + '\n';
+            } catch (error) {
+                output.textContent += '\nERROR: ' + error.message + '\n';
+                console.error(error);
+            }
+        }
+
+        function testExecute() {
+            try {
+                const request = ProtoHandler.createExecuteRequest('test-agent', 'TASK_TYPE_PING', '8.8.8.8');
+                output.textContent += '\nEXECUTE request created:\n';
+                output.textContent += 'Bytes: ' + Array.from(request).map(b => b.toString(16).padStart(2, '0')).join(' ') + '\n';
+            } catch (error) {
+                output.textContent += '\nERROR: ' + error.message + '\n';
+                console.error(error);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

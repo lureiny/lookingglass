@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LookingGlass - Network Diagnostics</title>
+    <link rel="stylesheet" href="css/style.css?v=16">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">🔍 LookingGlass</div>
+                <p class="subtitle">Network Diagnostics Platform</p>
+            </div>
+            <div class="connection-status">
+                <span id="connection-indicator" class="indicator offline">●</span>
+                <span id="connection-text">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Left Panel: Agent List -->
+            <aside class="agent-panel">
+                <div class="agent-panel-header">
+                    <h2 id="nodes-title">Nodes</h2>
+                    <div class="provider-filter">
+                        <label for="provider-filter">Provider:</label>
+                        <select id="provider-filter">
+                            <option value="all">all</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="agent-list" class="agent-list">
+                    <div class="loading">Loading agents...</div>
+                </div>
+            </aside>
+
+            <!-- Right Panel: Command Execution -->
+            <section class="command-panel">
+                <form id="command-form" class="command-form">
+                    <!-- Hidden agent select for form compatibility -->
+                    <select id="agent-select" required disabled style="display: none;">
+                    </select>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tool-select">Task</label>
+                            <select id="tool-select" required disabled>
+                            </select>
+                        </div>
+
+                        <div class="form-group form-group-grow">
+                            <label for="target-input">Target (IP or Domain)</label>
+                            <input type="text" id="target-input" placeholder="e.g., 8.8.8.8 or google.com" required
+                                disabled>
+                        </div>
+
+                        <div class="form-actions-inline">
+                            <button type="submit" id="execute-btn" disabled>Execute</button>
+                            <button type="button" id="cancel-btn" style="display: none;">Cancel</button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Selected Node Info -->
+                <div id="selected-node-info" class="selected-node-info" style="display: none;">
+                    <span class="info-label">Selected Node:</span>
+                    <span id="selected-node-text" class="node-text"></span>
+                </div>
+
+                <!-- Output Terminal -->
+                <div class="output-section">
+                    <div class="output-header">
+                        <h3>Terminal</h3>
+                        <button id="clear-output-btn" class="btn-small">Clear</button>
+                    </div>
+                    <div id="output-terminal-wrapper" class="terminal-wrapper">
+                        <div id="output-terminal" class="terminal">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Section -->
+                <div class="history-section">
+                    <h3>History</h3>
+                    <div id="history-list" class="history-list">
+                        <p class="no-history">No history yet</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer id="page-footer" class="page-footer" style="display: none;">
+            <div id="footer-content" class="footer-content"></div>
+        </footer>
+    </div>
+
+    <!-- Load protobuf.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+
+    <!-- Application Scripts -->
+    <script src="js/protobuf.js?v=12"></script>
+    <script src="js/websocket.js?v=12"></script>
+    <script src="js/app.js?v=17"></script>
+</body>
+
+</html>

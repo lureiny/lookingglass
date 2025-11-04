@@ -1,0 +1,64 @@
+# Multi-stage build for LookingGlass Master
+FROM golang:1.24-alpine3.22 AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make protobuf-dev protoc
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+ENV PATH="$PATH:$(go env GOPATH)/bin"
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build master binary
+RUN make build-master
+
+# Final stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    supervisor \
+    wget
+
+# Create non-root user
+RUN addgroup -g 1000 lookingglass && \
+    adduser -D -u 1000 -G lookingglass lookingglass
+
+# Set working directory
+WORKDIR /app
+
+# Create directories
+RUN mkdir -p /app/logs /var/log/supervisor /app/bin && \
+    chown -R lookingglass:lookingglass /app
+
+# Copy binary from builder
+COPY --from=builder /build/bin/master /app/bin/master
+
+# Copy web files
+COPY --from=builder /build/web /app/bin/web
+
+RUN chmod +x /app/bin/master
+
+# Copy supervisor configuration
+COPY docker/supervisord-master.conf /etc/supervisord.conf
+
+# Expose ports
+EXPOSE 50051 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/agents || exit 1
+
+# Run supervisord
+ENTRYPOINT ["/usr/bin/supervisord"]
+CMD ["-c", "/etc/supervisord.conf"]

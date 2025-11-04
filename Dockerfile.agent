@@ -1,0 +1,66 @@
+# Multi-stage build for LookingGlass Agent
+FROM golang:1.24-alpine3.22 AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make protobuf-dev protoc
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+ENV PATH="$PATH:$(go env GOPATH)/bin"
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build agent binary
+RUN make build-agent
+
+# Final stage
+FROM alpine:latest
+
+# Install diagnostic tools
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    iputils \
+    mtr \
+    wget \
+    curl \
+    supervisor \
+    procps
+
+# Install nexttrace
+RUN wget -O /usr/bin/nexttrace https://github.com/nxtrace/NTrace-core/releases/latest/download/nexttrace_linux_amd64 && \
+    chmod +x /usr/bin/nexttrace
+
+# Create non-root user
+RUN addgroup -g 1000 lookingglass && \
+    adduser -D -u 1000 -G lookingglass lookingglass
+
+# Set working directory
+WORKDIR /app
+
+# Create directories
+RUN mkdir -p /app/logs /var/log/supervisor /app/bin && \
+    chown -R lookingglass:lookingglass /app
+
+# Copy binary from builder
+COPY --from=builder /build/bin/agent /app/bin/agent
+
+RUN chmod +x /app/bin/agent
+
+# Copy supervisor configuration
+COPY docker/supervisord-agent.conf /etc/supervisord.conf
+
+# Health check (checks if agent process is running via supervisor)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD pgrep -x agent || exit 1
+
+# Run supervisord
+ENTRYPOINT ["/usr/bin/supervisord"]
+CMD ["-c", "/etc/supervisord.conf"]

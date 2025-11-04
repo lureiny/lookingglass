@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug IPv6 Display</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .agent-ip-row { display: flex; gap: 12px; }
+        .agent-ip { font-size: 14px; padding: 5px; background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h1>Debug IPv6 Display</h1>
+
+    <h2>1. Direct API Test</h2>
+    <button onclick="testAPI()">Fetch from API</button>
+    <pre id="api-result"></pre>
+
+    <h2>2. Simulated Render Test</h2>
+    <div id="render-test"></div>
+
+    <h2>3. WebSocket Test</h2>
+    <button onclick="testWebSocket()">Test WebSocket</button>
+    <pre id="ws-result"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+    <script src="js/protobuf.js"></script>
+
+    <script>
+        // Test 1: API
+        async function testAPI() {
+            try {
+                const response = await fetch('/api/agents');
+                const data = await response.json();
+                document.getElementById('api-result').textContent = JSON.stringify(data, null, 2);
+
+                // Render agents
+                renderAgents(data.agents);
+            } catch (error) {
+                document.getElementById('api-result').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        // Test 2: Render
+        function renderAgents(agents) {
+            const container = document.getElementById('render-test');
+            container.innerHTML = '';
+
+            agents.forEach(agent => {
+                const card = document.createElement('div');
+                card.style.border = '1px solid #ccc';
+                card.style.padding = '10px';
+                card.style.marginBottom = '10px';
+
+                card.innerHTML = `
+                    <h3>${agent.name}</h3>
+                    <div>${agent.location} • ${agent.status}</div>
+                    ${agent.ipv4 || agent.ipv6 ? `<div class="agent-ip-row">
+                        ${agent.ipv4 ? `<div class="agent-ip">IPv4: ${agent.ipv4}</div>` : ''}
+                        ${agent.ipv6 ? `<div class="agent-ip">IPv6: ${agent.ipv6}</div>` : ''}
+                    </div>` : ''}
+                `;
+
+                container.appendChild(card);
+                console.log('Rendered agent:', agent.name, 'IPv4:', agent.ipv4, 'IPv6:', agent.ipv6);
+            });
+        }
+
+        // Test 3: WebSocket
+        async function testWebSocket() {
+            const output = document.getElementById('ws-result');
+            output.textContent = 'Connecting to WebSocket...\n';
+
+            if (!ProtoHandler.init()) {
+                output.textContent += 'ERROR: Failed to initialize protobuf\n';
+                return;
+            }
+
+            const ws = new WebSocket('ws://localhost:8080/ws');
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => {
+                output.textContent += 'Connected! Requesting agent list...\n';
+                const request = ProtoHandler.createListAgentsRequest();
+                ws.send(request);
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const response = ProtoHandler.decodeResponse(event.data);
+                    output.textContent += 'Received response type: ' + response.type + '\n';
+
+                    if (response.type === 5 && response.agents) {
+                        output.textContent += 'Agents:\n';
+                        response.agents.forEach(agent => {
+                            output.textContent += `  ${agent.name}:\n`;
+                            output.textContent += `    IPv4: ${agent.ipv4 || 'N/A'}\n`;
+                            output.textContent += `    IPv6: ${agent.ipv6 || 'N/A'}\n`;
+                        });
+
+                        // Also render
+                        renderAgents(response.agents);
+                    }
+                } catch (error) {
+                    output.textContent += 'ERROR: ' + error.message + '\n';
+                }
+            };
+
+            ws.onerror = (error) => {
+                output.textContent += 'WebSocket error: ' + error + '\n';
+            };
+        }
+
+        // Auto test on load
+        window.addEventListener('load', () => {
+            testAPI();
+        });
+    </script>
+</body>
+</html>

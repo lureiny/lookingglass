@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Agent List Test</h1>
+    <button onclick="requestAgents()">Request Agent List</button>
+    <pre id="output"></pre>
+
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs@7.2.5/dist/protobuf.min.js"></script>
+    <script src="js/protobuf.js"></script>
+
+    <script>
+        let ws = null;
+        let output = document.getElementById('output');
+
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+
+        // Initialize protobuf
+        if (!ProtoHandler.init()) {
+            log('Failed to initialize protobuf');
+        } else {
+            log('Protobuf initialized');
+            connect();
+        }
+
+        function connect() {
+            ws = new WebSocket('ws://localhost:8080/ws');
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => {
+                log('WebSocket connected');
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    const response = ProtoHandler.decodeResponse(event.data);
+                    log('Received message type: ' + response.type);
+
+                    if (response.type === 5) { // TYPE_AGENT_LIST
+                        log('Agent list received:');
+                        response.agents.forEach(agent => {
+                            log(`  Agent: ${agent.name}`);
+                            log(`    IPv4: ${agent.ipv4 || 'N/A'}`);
+                            log(`    IPv6: ${agent.ipv6 || 'N/A'}`);
+                            log(`    Status: ${agent.status}`);
+                        });
+                    }
+                } catch (error) {
+                    log('Error handling message: ' + error.message);
+                }
+            };
+
+            ws.onerror = (error) => {
+                log('WebSocket error: ' + error);
+            };
+
+            ws.onclose = () => {
+                log('WebSocket closed');
+            };
+        }
+
+        function requestAgents() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('WebSocket not connected');
+                return;
+            }
+
+            const request = ProtoHandler.createListAgentsRequest();
+            ws.send(request);
+            log('Requested agent list');
+        }
+    </script>
+</body>
+</html>

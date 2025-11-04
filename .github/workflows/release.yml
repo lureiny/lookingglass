@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Install protoc
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y protobuf-compiler
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Generate protobuf code
+        run: make proto
+
+      - name: Build binaries
+        run: make build
+
+      - name: Package Master
+        run: make package-master
+
+      - name: Package Agent
+        run: make package-agent
+
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/lookingglass-master-*.tar.gz
+            dist/lookingglass-agent-*.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## LookingGlass ${{ steps.get_version.outputs.VERSION }}
+
+            ### 下载
+
+            - **Master**: `lookingglass-master-${{ steps.get_version.outputs.VERSION }}.tar.gz`
+            - **Agent**: `lookingglass-agent-${{ steps.get_version.outputs.VERSION }}.tar.gz`
+
+            ### Docker 镜像
+
+            ```bash
+            # Master
+            docker pull ghcr.io/${{ github.repository }}/master:${{ steps.get_version.outputs.VERSION }}
+
+            # Agent
+            docker pull ghcr.io/${{ github.repository }}/agent:${{ steps.get_version.outputs.VERSION }}
+            ```
+
+            ### 部署文档
+
+            详见 [部署指南](https://github.com/${{ github.repository }}/blob/main/docs/DEPLOYMENT.md)
+
+            ---
+
+            完整更新日志见下方自动生成的 Release Notes。
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

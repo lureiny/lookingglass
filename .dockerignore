@@ -1,0 +1,36 @@
+# Build artifacts
+bin/
+dist/
+*.tar.gz
+
+# Logs
+logs/
+*.log
+
+# Configuration (will be mounted as volumes)
+master/config.yaml
+agent/config.yaml
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test files
+*_test.go
+coverage.out
+coverage.html
+
+# Temporary files
+tmp/
+temp/
+.DS_Store

@@ -1,0 +1,220 @@
+# LookingGlass Agent Configuration Example
+# Copy this file to config.yaml and modify the settings
+
+agent:
+  id: "agent-001"                   # Agent unique identifier (use descriptive name like "us-west-1", "hk-node-1")
+  name: "Example Agent"             # Display name shown in frontend
+  ipv4: ""                          # Public IPv4 address (leave empty for auto-detection)
+  ipv6: ""                          # Public IPv6 address (leave empty for auto-detection, optional)
+  hide_ip: true                     # Whether to mask IP addresses (IPv4: 127.0.*.*, IPv6: 2001:****:****:****:****:****:****:****)
+  max_concurrent: 10                # Maximum concurrent tasks (deprecated, use executor.global_concurrency)
+
+  # Agent metadata - descriptive information displayed in frontend
+  metadata:
+    location: "Los Angeles, USA"    # Geographic location (e.g., "Tokyo, Japan", "Singapore")
+    provider: "DigitalOcean"        # Service provider (e.g., "AWS", "Vultr", "Self-Hosted")
+    idc: "sfo3"                     # Data center identifier (e.g., "us-west-1a", "sgp1", "cn-hangzhou")
+    description: "West Coast Node"  # Additional description (e.g., "CN2 GIA", "Low Latency")
+
+master:
+  host: "master.example.com:50051"  # Master gRPC address (change to your master server)
+  api_key: "your-secret-key-change-this-in-production"  # API key for authentication (must match master config)
+  tls_enabled: false                # Enable TLS for gRPC connection
+  tls_cert: ""                      # TLS certificate path (if tls_enabled is true)
+  heartbeat_interval: 30            # Heartbeat interval in seconds (will be overridden by master)
+
+  # Reconnection settings
+  reconnect:
+    initial_interval: 1             # Initial reconnect interval in seconds
+    max_interval: 60                # Maximum reconnect interval in seconds
+    multiplier: 2                   # Backoff multiplier
+
+executor:
+  global_concurrency: 10            # Global max concurrent tasks across all task types
+  default_timeout: 300              # Default command execution timeout in seconds
+  work_dir: "/tmp/lookingglass"     # Working directory for temporary files
+
+  # Task configurations
+  # Supports both builtin tasks (ping, mtr, nexttrace) and custom command tasks
+  #
+  # Minimal config (uses all defaults):
+  #   task_name:
+  #     enabled: true
+  #
+  # Custom config (override specific settings):
+  #   task_name:
+  #     enabled: true
+  #     display_name: "Custom Name"
+  #     requires_target: true
+  #     executor:
+  #       path: "/custom/path"
+  #     concurrency:
+  #       max: 3
+
+  tasks:
+    # ==================================================
+    # Builtin Tasks
+    # ==================================================
+
+    # Ping - ICMP echo test
+    ping:
+      enabled: true
+      display_name: "Ping"
+      requires_target: true         # Requires target parameter from frontend
+      concurrency:
+        max: 5                      # Max 5 concurrent ping tasks
+
+    # MTR - My TraceRoute (combines traceroute and ping)
+    mtr:
+      enabled: true
+      display_name: "MTR"
+      requires_target: true
+      concurrency:
+        max: 3                      # Max 3 concurrent MTR tasks
+
+    # NextTrace - Enhanced traceroute with IP info
+    nexttrace:
+      enabled: true
+      display_name: "NextTrace"
+      requires_target: true
+      executor:
+        path: "/usr/bin/nexttrace"  # Path to nexttrace binary
+      concurrency:
+        max: 2                      # Max 2 concurrent nexttrace tasks
+
+    # ==================================================
+    # Custom Command Tasks
+    # ==================================================
+
+    # Example 1: HTTP Check using curl
+    # Uncomment to enable
+    # http_check:
+    #   enabled: true
+    #   display_name: "HTTP Check"
+    #   requires_target: true
+    #   executor:
+    #     type: command
+    #     path: "/usr/bin/curl"
+    #     # Template placeholders: {target}, {count}, {timeout}, {ipv6}
+    #     default_args: ["-I", "-L", "-m", "10", "{target}"]
+    #     line_formatter: "none"    # "none" or "newline"
+    #   concurrency:
+    #     max: 3
+
+    # Example 2: DNS Query using dig
+    # Uncomment to enable
+    # dns_query:
+    #   enabled: true
+    #   display_name: "DNS Query"
+    #   requires_target: true
+    #   executor:
+    #     type: command
+    #     path: "/usr/bin/dig"
+    #     default_args: ["+short", "{target}"]
+    #   concurrency:
+    #     max: 5
+
+    # Example 3: Traceroute (alternative to nexttrace)
+    # Uncomment to enable
+    # traceroute:
+    #   enabled: false
+    #   display_name: "Traceroute"
+    #   requires_target: true
+    #   executor:
+    #     type: command
+    #     path: "/usr/bin/traceroute"
+    #     default_args: ["-m", "{count}", "{target}"]
+    #   concurrency:
+    #     max: 2
+
+    # Example 4: System Information (no target required)
+    # Uncomment to enable
+    # system_info:
+    #   enabled: false
+    #   display_name: "System Info"
+    #   requires_target: false      # No target parameter needed
+    #   executor:
+    #     type: command
+    #     path: "/usr/bin/uname"
+    #     default_args: ["-a"]
+    #   concurrency:
+    #     max: 1
+
+    # Example 5: Network Interfaces (no target required)
+    # Uncomment to enable
+    # network_info:
+    #   enabled: false
+    #   display_name: "Network Info"
+    #   requires_target: false
+    #   executor:
+    #     type: command
+    #     path: "/usr/bin/ip"
+    #     default_args: ["addr", "show"]
+    #   concurrency:
+    #     max: 1
+
+    # Example 6: Speed Test (no target required)
+    # Requires speedtest-cli to be installed
+    # Uncomment to enable
+    # speed_test:
+    #   enabled: false
+    #   display_name: "Speed Test"
+    #   requires_target: false
+    #   executor:
+    #     type: command
+    #     path: "/usr/bin/speedtest-cli"
+    #     default_args: ["--simple"]
+    #   concurrency:
+    #     max: 1
+
+log:
+  level: info                       # Log level: debug | info | warn | error
+  file: logs/agent.log              # Log file path (relative to working directory)
+  console: true                     # Output logs to console
+
+# ==================================================
+# Configuration Notes
+# ==================================================
+#
+# 1. IP Address Auto-Detection:
+#    - Leave ipv4 and ipv6 empty ("") to enable auto-detection
+#    - Auto-detection tries multiple public APIs
+#    - Falls back to local network interface if external APIs fail
+#
+# 2. Task Configuration:
+#    - Builtin tasks (ping, mtr, nexttrace) have default implementations
+#    - Custom tasks require full executor configuration
+#    - See docs/TASK_CONFIG.md for detailed configuration guide
+#
+# 3. Concurrency Control:
+#    - global_concurrency: Total tasks across all types
+#    - tasks.*.concurrency.max: Per-task-type limit
+#    - Both limits are enforced (whichever is reached first)
+#
+# 4. Template Placeholders in default_args:
+#    - {target}: Target IP/domain from frontend
+#    - {count}: Count parameter (default: 4)
+#    - {timeout}: Timeout in seconds
+#    - {ipv6}: Boolean flag (true/false)
+#
+# 5. Security Best Practices:
+#    - Use strong API key (32+ characters)
+#    - Use absolute paths for executor.path
+#    - Limit default_args to prevent command injection
+#    - Enable TLS in production environments
+#
+# 6. Required Tools:
+#    - ping: iputils or iputils-ping package
+#    - mtr: mtr or mtr-tiny package
+#    - nexttrace: https://github.com/nxtrace/NTrace-core
+#    - Custom commands: Install required tools manually
+#
+# ==================================================
+# Documentation
+# ==================================================
+#
+# - Full deployment guide: docs/DEPLOYMENT.md
+# - Task configuration: docs/TASK_CONFIG.md
+# - Architecture overview: CLAUDE.md
+# - Script deployment: scripts/README.md
+#

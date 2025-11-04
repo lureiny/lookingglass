@@ -1,0 +1,200 @@
+# LookingGlass Master Configuration Example
+# Copy this file to config.yaml and modify the settings
+
+server:
+  grpc_port: 50051              # gRPC port for agent connections
+  ws_port: 8080                 # WebSocket/HTTP port for frontend (combined)
+
+auth:
+  mode: api_key                 # Authentication mode: api_key | ip_whitelist
+  api_key: "your-secret-key-change-this-in-production"  # API key for authentication (32+ chars recommended)
+
+  # IP Whitelist (only used when mode is ip_whitelist)
+  ip_whitelist:
+    - "127.0.0.1"               # Localhost
+    - "192.168.1.0/24"          # Local network
+    - "10.0.0.0/8"              # Private network
+
+concurrency:
+  global_max: 100               # Global maximum concurrent tasks across all agents
+  agent_default_max: 10         # Default maximum concurrent tasks per agent
+  # Note: Per-agent limits are not currently supported in code
+
+agent:
+  heartbeat_timeout: 90         # Mark agent offline after this timeout (seconds)
+  heartbeat_interval: 30        # Heartbeat interval sent to agents (seconds)
+  offline_check_interval: 60    # How often to check for offline agents (seconds)
+
+task:
+  default_timeout: 300          # Default task timeout in seconds (5 minutes)
+  history_retention: 24         # Task history retention in hours (0 = disable history)
+
+  # Default parameters for frontend (used when user doesn't specify)
+  default_ping_count: 4         # Default ping count
+  default_mtr_count: 4          # Default MTR count
+
+# Branding customization (optional)
+# Customize the appearance of the web frontend
+branding:
+  site_title: "LookingGlass"                    # Browser tab title
+  logo_url: ""                                  # Logo image URL (leave empty to use logo_text)
+  logo_text: "LG"                               # Text logo (2-3 chars recommended, used if logo_url is empty)
+  subtitle: "Network Diagnostic Platform"       # Subtitle shown in header
+  footer_text: "Powered by LookingGlass"        # Footer text (supports HTML)
+
+# Notification settings (optional)
+notification:
+  enabled: false                # Enable/disable all notifications
+
+  # Which events to notify
+  events:
+    agent_online: true          # Notify when agent comes online
+    agent_offline: true         # Notify when agent goes offline
+    agent_error: true           # Notify on agent connection errors
+    task_failed: false          # Notify on task failures (may be noisy)
+
+  # Bark notification (iOS push notification service)
+  # https://github.com/Finb/Bark
+  bark:
+    server_url: ""              # Full Bark URL (e.g., https://api.day.app/YOUR_KEY)
+    device_key: ""              # Or just the device key (will use default server)
+    sound: "bell"               # Notification sound (optional)
+    icon: ""                    # Icon URL (optional)
+    group: "LookingGlass"       # Notification group (optional)
+
+  # Example: Other notification providers (not implemented yet)
+  # telegram:
+  #   bot_token: ""
+  #   chat_id: ""
+  #
+  # feishu:
+  #   webhook_url: ""
+  #
+  # dingtalk:
+  #   webhook_url: ""
+  #   secret: ""
+  #
+  # discord:
+  #   webhook_url: ""
+  #
+  # slack:
+  #   webhook_url: ""
+
+log:
+  level: info                   # Log level: debug | info | warn | error
+  file: logs/master.log         # Log file path (relative to working directory)
+  console: true                 # Output logs to console (set to false in production)
+
+# ==================================================
+# Configuration Notes
+# ==================================================
+#
+# 1. Server Ports:
+#    - grpc_port: For agent connections (default: 50051)
+#    - ws_port: For frontend HTTP and WebSocket (default: 8080)
+#    - Web static files are served from 'web/' directory at ws_port
+#
+# 2. Authentication:
+#    - api_key mode (recommended): Agents authenticate using API key
+#    - ip_whitelist mode: Only allow specific IPs to connect
+#    - Generate strong API key: openssl rand -hex 32
+#    - API key must be set even if using ip_whitelist mode
+#
+# 3. Concurrency Control:
+#    - global_max: Total tasks across all agents (default: 50)
+#    - agent_default_max: Default limit per agent (default: 5)
+#    - Limits prevent system overload
+#
+# 4. Agent Settings:
+#    - heartbeat_interval: How often agents send heartbeat (default: 30s)
+#    - heartbeat_timeout: Must be > interval (recommended: 3x, default: 60s)
+#    - offline_check_interval: How often to check for timeouts (default: 60s)
+#
+# 5. Task Settings:
+#    - default_timeout: Default timeout for all tasks (default: 300s)
+#    - history_retention: Set to 0 to disable task history (default: 24h)
+#    - default_*_count: Frontend defaults, users can override
+#
+# 6. Branding:
+#    - site_title: Shows in browser tab
+#    - logo_url: Custom logo image URL (if empty, uses logo_text)
+#    - logo_text: Text logo shown in header (default: "🔍 LookingGlass")
+#    - subtitle: Shown below logo (default: "Network Diagnostics Platform")
+#    - footer_text: Custom footer, supports HTML
+#
+# 7. Notifications:
+#    - Set enabled: true to activate
+#    - Configure events to control notification frequency
+#    - Currently supports Bark (iOS push notification)
+#    - More providers can be added in future
+#
+# 8. Logging:
+#    - debug: Verbose logging for troubleshooting
+#    - info: Standard logging for production
+#    - warn/error: Minimal logging
+#    - console: Set to false in production to avoid spam
+#
+# ==================================================
+# Default Values (if not specified)
+# ==================================================
+#
+# server.grpc_port: 50051
+# server.ws_port: 8080
+# concurrency.global_max: 50
+# concurrency.agent_default_max: 5
+# agent.heartbeat_timeout: 60
+# agent.heartbeat_interval: 30
+# agent.offline_check_interval: 60
+# task.default_timeout: 300
+# task.history_retention: 24
+# task.default_ping_count: 4
+# task.default_mtr_count: 4
+# log.level: "info"
+# log.file: "logs/master.log"
+# branding.site_title: "LookingGlass - Network Diagnostics"
+# branding.logo_text: "🔍 LookingGlass" (if logo_url is empty)
+# branding.subtitle: "Network Diagnostics Platform" (if logo_text is empty)
+#
+# ==================================================
+# Security Best Practices
+# ==================================================
+#
+# 1. Change default API key immediately
+# 2. Use strong random keys: openssl rand -hex 32
+# 3. Use firewall to limit access to ports 50051 and 8080
+# 4. Consider using ip_whitelist for additional security
+# 5. Enable TLS in production (requires code modification)
+# 6. Rotate API keys periodically (update agents accordingly)
+# 7. Monitor logs for suspicious activity
+# 8. Keep software updated
+#
+# ==================================================
+# Quick Start
+# ==================================================
+#
+# 1. Copy this file:
+#    cp master/config.yaml.example master/config.yaml
+#
+# 2. Generate API key:
+#    openssl rand -hex 32
+#
+# 3. Edit config.yaml:
+#    vi master/config.yaml
+#    # Set auth.api_key to generated key
+#
+# 4. Start master:
+#    ./bin/master -config master/config.yaml
+#
+# 5. Access web interface:
+#    http://localhost:8080
+#
+# ==================================================
+# Documentation
+# ==================================================
+#
+# - Full deployment guide: docs/DEPLOYMENT.md
+# - Task configuration: docs/TASK_CONFIG.md
+# - Architecture overview: CLAUDE.md
+# - Script deployment: scripts/README.md
+# - Docker deployment: docs/DOCKER.md
+#

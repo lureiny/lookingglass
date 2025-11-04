@@ -1,0 +1,341 @@
+syntax = "proto3";
+
+package lookingglass;
+
+option go_package = "github.com/lureiny/lookingglass/pb";
+
+import "google/protobuf/timestamp.proto";
+
+// ============================================================================
+// Enums
+// ============================================================================
+
+// Agent status
+enum AgentStatus {
+  AGENT_STATUS_UNSPECIFIED = 0;
+  AGENT_STATUS_ONLINE = 1;
+  AGENT_STATUS_OFFLINE = 2;
+}
+
+// Task status
+enum TaskStatus {
+  TASK_STATUS_UNSPECIFIED = 0;
+  TASK_STATUS_PENDING = 1;
+  TASK_STATUS_RUNNING = 2;
+  TASK_STATUS_COMPLETED = 3;
+  TASK_STATUS_FAILED = 4;
+  TASK_STATUS_CANCELLED = 5;
+}
+
+// Task type
+enum TaskType {
+  TASK_TYPE_UNSPECIFIED = 0;
+  TASK_TYPE_PING = 1;
+  TASK_TYPE_MTR = 2;
+  TASK_TYPE_TRACEROUTE = 3;
+  TASK_TYPE_SYSBENCH = 4;
+  TASK_TYPE_NEXTTRACE = 5;
+  TASK_TYPE_CUSTOM_COMMAND = 6;  // Custom command execution
+}
+
+// Authentication mode
+enum AuthMode {
+  AUTH_MODE_UNSPECIFIED = 0;
+  AUTH_MODE_API_KEY = 1;
+  AUTH_MODE_IP_WHITELIST = 2;
+}
+
+// ============================================================================
+// Messages - Agent Information
+// ============================================================================
+
+// Task metadata for frontend display (used for both builtin and custom tasks)
+message TaskDisplayInfo {
+  string task_name = 1;             // Internal task name (e.g., "ping", "curl_test")
+  string display_name = 2;          // Display name for frontend (e.g., "Ping", "HTTP Check")
+  string description = 3;           // Optional description
+  bool requires_target = 4;         // Whether this task requires a target parameter (default: true)
+}
+
+// Deprecated: Use TaskDisplayInfo instead
+message CustomCommandInfo {
+  string task_name = 1;
+  string display_name = 2;
+  string description = 3;
+}
+
+message AgentInfo {
+  string id = 1;                    // Unique identifier (e.g., "us-west-1")
+  string name = 2;                  // Display name (e.g., "美国西部-洛杉矶")
+  string location = 3;              // Geographic location
+  string ipv4 = 4;                  // IPv4 address
+  string ipv6 = 5;                  // IPv6 address (optional)
+  string host = 6;                  // Agent gRPC address (host:port)
+  int32 max_concurrent = 7;         // Maximum concurrent tasks
+  repeated TaskType supported_tasks = 8;  // [DEPRECATED] Use task_names instead
+  bool hide_ip = 9;                 // Whether to hide IP address (mask last 2 octets)
+  string provider = 10;             // Service provider (e.g., "AWS", "DigitalOcean")
+  string idc = 11;                  // Data center (e.g., "us-west-1a")
+  string description = 12;          // Additional description
+  repeated CustomCommandInfo custom_commands = 13;  // [DEPRECATED] Use task_display_info instead
+  repeated string task_names = 14;  // [DEPRECATED] Use task_display_info instead
+  repeated TaskDisplayInfo task_display_info = 15;  // Task display information (name + display_name)
+}
+
+message AgentStatus_Message {
+  string agent_id = 1;
+  AgentStatus status = 2;
+  google.protobuf.Timestamp last_heartbeat = 3;
+  int32 current_tasks = 4;
+}
+
+// ============================================================================
+// Messages - Task Parameters
+// ============================================================================
+
+// Network test parameters (ping, mtr, traceroute)
+message NetworkTestParams {
+  string target = 1;                // Target IP or domain
+  int32 count = 2;                  // Number of packets/hops
+  int32 timeout = 3;                // Timeout in seconds
+  bool ipv6 = 4;                    // Use IPv6
+  map<string, string> extra_options = 5;  // Extra command-line options
+  string custom_task_name = 6;      // [DEPRECATED] Use Task.task_name instead
+}
+
+// Benchmark parameters (sysbench, etc.)
+message BenchmarkParams {
+  string test_type = 1;             // cpu/memory/io
+  int32 threads = 2;                // Number of threads
+  int32 duration = 3;               // Test duration in seconds
+  map<string, string> options = 4;  // Extra options
+}
+
+// Custom parameters for fully flexible commands
+message CustomParams {
+  bytes raw_data = 1;               // Serialized parameters
+  string content_type = 2;          // Data format identifier (e.g., "json", "yaml")
+}
+
+// Task definition
+message Task {
+  string task_id = 1;               // Unique task identifier
+  string agent_id = 2;              // Target agent ID
+  string task_name = 3;             // Task name (e.g., "ping", "mtr", "curl_test")
+  TaskType type = 4;                // [DEPRECATED] Task type enum - use task_name instead
+  google.protobuf.Timestamp created_at = 5;
+  int32 timeout = 6;                // Task timeout in seconds
+
+  // Task parameters (oneof for type safety)
+  oneof params {
+    NetworkTestParams network_test = 10;
+    BenchmarkParams benchmark = 11;
+    CustomParams custom = 12;
+  }
+}
+
+// ============================================================================
+// Messages - Task Execution
+// ============================================================================
+
+// Task output (streamed from Agent to Master)
+message TaskOutput {
+  string task_id = 1;
+  string output_line = 2;           // Single line of output
+  google.protobuf.Timestamp timestamp = 3;
+  TaskStatus status = 4;            // Current task status
+  string error_message = 5;         // Error message (if failed)
+}
+
+// ============================================================================
+// Master Service (called by Agent)
+// ============================================================================
+
+service MasterService {
+  // Agent registration (deprecated - use AgentStream instead)
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Agent heartbeat (deprecated - use AgentStream instead)
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // Bidirectional stream for Agent-Master communication
+  // Agent initiates this stream and keeps it alive
+  // Supports: registration, heartbeat, task execution, task output
+  rpc AgentStream(stream AgentMessage) returns (stream MasterMessage);
+}
+
+// Register request
+message RegisterRequest {
+  AgentInfo agent_info = 1;
+}
+
+// Register response
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  int32 heartbeat_interval = 3;     // Heartbeat interval in seconds
+}
+
+// Heartbeat request
+message HeartbeatRequest {
+  string agent_id = 1;
+  int32 current_tasks = 2;          // Number of currently running tasks
+  google.protobuf.Timestamp timestamp = 3;
+}
+
+// Heartbeat response
+message HeartbeatResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// ============================================================================
+// Bidirectional Stream Messages
+// ============================================================================
+
+// Agent -> Master message
+message AgentMessage {
+  string request_id = 1;            // Unique request ID for async request/response
+
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_REGISTER = 1;              // Agent registration
+    TYPE_HEARTBEAT = 2;             // Heartbeat
+    TYPE_TASK_OUTPUT = 3;           // Task execution output
+    TYPE_TASK_COMPLETE = 4;         // Task completion
+    TYPE_TASK_FAILED = 5;           // Task failure
+  }
+
+  Type type = 2;
+
+  // Message payload (oneof based on type)
+  oneof payload {
+    RegisterRequest register = 10;
+    HeartbeatRequest heartbeat = 11;
+    TaskOutput task_output = 12;
+  }
+}
+
+// Master -> Agent message
+message MasterMessage {
+  string request_id = 1;            // Request ID (for response) or new request ID
+
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_REGISTER_RESPONSE = 1;     // Registration response
+    TYPE_HEARTBEAT_RESPONSE = 2;    // Heartbeat response
+    TYPE_EXECUTE_TASK = 3;          // Execute task command
+    TYPE_CANCEL_TASK = 4;           // Cancel task command
+    TYPE_ACK = 5;                   // Generic acknowledgment
+  }
+
+  Type type = 2;
+
+  // Message payload (oneof based on type)
+  oneof payload {
+    RegisterResponse register_response = 10;
+    HeartbeatResponse heartbeat_response = 11;
+    ExecuteTaskRequest execute_task = 12;
+    CancelTaskRequest cancel_task = 13;
+  }
+}
+
+// ============================================================================
+// Agent Service (called by Master)
+// ============================================================================
+
+service AgentService {
+  // Execute task (streaming output)
+  rpc ExecuteTask(ExecuteTaskRequest) returns (stream TaskOutput);
+
+  // Cancel task
+  rpc CancelTask(CancelTaskRequest) returns (CancelTaskResponse);
+
+  // Health check
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+// Execute task request
+message ExecuteTaskRequest {
+  Task task = 1;
+}
+
+// Cancel task request
+message CancelTaskRequest {
+  string task_id = 1;
+}
+
+// Cancel task response
+message CancelTaskResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Health check request
+message HealthCheckRequest {
+  google.protobuf.Timestamp timestamp = 1;
+}
+
+// Health check response
+message HealthCheckResponse {
+  bool healthy = 1;
+  string message = 2;
+  int32 current_tasks = 3;
+  int32 max_concurrent = 4;
+}
+
+// ============================================================================
+// WebSocket Protocol (CLI <-> Master)
+// ============================================================================
+
+// WebSocket request message
+message WSRequest {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_EXECUTE = 1;
+    ACTION_CANCEL = 2;
+    ACTION_LIST_AGENTS = 3;  // Request agent list
+  }
+
+  Action action = 1;
+  Task task = 2;        // For ACTION_EXECUTE
+  string task_id = 3;   // For ACTION_CANCEL
+}
+
+// WebSocket response message
+message WSResponse {
+  enum Type {
+    TYPE_UNSPECIFIED = 0;
+    TYPE_OUTPUT = 1;
+    TYPE_ERROR = 2;
+    TYPE_COMPLETE = 3;
+    TYPE_TASK_STARTED = 4;
+    TYPE_AGENT_LIST = 5;   // Agent list response
+    TYPE_AGENT_STATUS_UPDATE = 6;  // Agent status update (server push)
+  }
+
+  Type type = 1;
+  string task_id = 2;
+  string output = 3;     // Output line for TYPE_OUTPUT
+  string message = 4;    // Error message or status message
+  repeated AgentStatusInfo agents = 5;  // Agent list for TYPE_AGENT_LIST and TYPE_AGENT_STATUS_UPDATE
+}
+
+// Agent status info for WebSocket response
+message AgentStatusInfo {
+  string id = 1;
+  string name = 2;
+  string location = 3;
+  string ipv4 = 4;
+  string ipv6 = 5;
+  AgentStatus status = 6;
+  repeated TaskType supported_tasks = 7;  // [DEPRECATED] Use task_names instead
+  int32 current_tasks = 8;
+  int32 max_concurrent = 9;
+  string provider = 10;             // Service provider
+  string idc = 11;                  // Data center
+  string description = 12;          // Additional description
+  repeated CustomCommandInfo custom_commands = 13;  // [DEPRECATED] Use task_display_info instead
+  repeated string task_names = 14;  // [DEPRECATED] Use task_display_info instead
+  repeated TaskDisplayInfo task_display_info = 15;  // Task display information (name + display_name)
+}
